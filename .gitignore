@@ -1,0 +1,4 @@
+node_modules
+app.config.*
+ecosystem.yaml
+package-lock.json
