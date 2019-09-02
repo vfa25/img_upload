@@ -2,6 +2,7 @@ const express = require('express');
 const util = require('util');
 const fs = require('fs');
 const formidable = require('formidable');
+const request = require('request');
 const webpack = require('webpack');
 const MemoryFs = require('memory-fs');
 const webpackConfig = require('./webpack.config.img.js');
@@ -27,21 +28,28 @@ router.post('/', function(req, res, next) {
       const filesArr = Array.isArray(files.upload)
         ? files.upload
         : [files.upload];
+      let hasNoImgType = false;
       const filesPaths = filesArr.map(v => {
         const newPath = ''.replace.call(
           winPath(v.path),
           /^(.*\/).*\.(gif|png|jpe?g|svg)$/i,
           `$1${v.name}`
         );
+        if (!/(gif|png|jpe?g|svg)/i.test(v.type)) {
+          hasNoImgType = true;
+        }
         fs.renameSync(v.path, newPath);
         return newPath;
       });
+      if (hasNoImgType) {
+        return res.status(400).send('您的上传中含有非图片文件');
+      }
 
       const newConfig = Object.assign(webpackConfig, { entry: filesPaths });
       const imgCompiler = webpack(newConfig);
       imgCompiler.outputFileSystem = mfs;
 
-      imgCompiler.watch({}, (err, stats) => {
+      imgCompiler.run((err, stats) => {
         if (err) throw err;
         stats = stats.toJson();
         stats.errors.forEach(err => console.error(err));
@@ -57,18 +65,29 @@ router.post('/', function(req, res, next) {
         cdnUpload
           .startUpload(promiseArr)
           .then(info => {
-            res.writeHead(200, { 'content-type': 'text/plain;charset=utf-8' });
+            res.writeHead(200, { 'content-type': 'text/html;charset=utf-8' });
             res.write('上传CDN成功，文件名为:\n\n');
             const result = files.reduce((total, item) => {
               if (reg.test(item)) {
-                total.push(cdnUpload.host + item);
+                total.push(`
+                  <p>
+                    <span>${cdnUpload.host + item}</span>
+                    <span>&nbsp;&nbsp;&nbsp;</span>
+                    <a href="/upload/imgs?url=${cdnUpload.host +
+                      item}" download>下载图片</a>
+                    <span>&nbsp;&nbsp;&nbsp;</span>
+                    <a href="${cdnUpload.host + item}" target="_blank">预览</a>
+                  </p>
+                `);
               }
               return total;
             }, []);
-            res.end(util.inspect({ files: result }));
+            res.end(result.join('\t\n'));
           })
           .catch(err => {
-            res.writeHead(200, { 'content-type': 'text/plain;charset=utf-8' });
+            res.writeHead(200, {
+              'content-type': 'text/plain;charset=utf-8'
+            });
             res.write('上传CDN失败:\n\n');
             res.end(
               util.inspect({
@@ -89,6 +108,10 @@ router.post('/', function(req, res, next) {
       );
     }
   });
+});
+
+router.get('/imgs', function(req, res, next) {
+  request(req.query.url).pipe(res);
 });
 
 router.get('/', function(req, res, next) {

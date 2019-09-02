@@ -30,6 +30,7 @@
     "memory-fs": "^0.4.1",
     "morgan": "~1.9.1",
     "qiniu": "^7.2.2",
+    "request": "^2.88.0",
     "serve-favicon": "^2.5.0",
     "webpack": "^4.34.0",
     "webpack-cli": "^3.3.4"
